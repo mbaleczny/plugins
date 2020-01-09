@@ -10,12 +10,9 @@
 // for more info.
 static NSString *const kClientIdKey = @"CLIENT_ID";
 
-static NSString *const kServerClientIdKey = @"SERVER_CLIENT_ID";
-
 // These error codes must match with ones declared on Android and Dart sides.
 static NSString *const kErrorReasonSignInRequired = @"sign_in_required";
 static NSString *const kErrorReasonSignInCanceled = @"sign_in_canceled";
-static NSString *const kErrorReasonNetworkError = @"network_error";
 static NSString *const kErrorReasonSignInFailed = @"sign_in_failed";
 
 static FlutterError *getFlutterError(NSError *error) {
@@ -24,8 +21,6 @@ static FlutterError *getFlutterError(NSError *error) {
     errorCode = kErrorReasonSignInRequired;
   } else if (error.code == kGIDSignInErrorCodeCanceled) {
     errorCode = kErrorReasonSignInCanceled;
-  } else if ([error.domain isEqualToString:NSURLErrorDomain]) {
-    errorCode = kErrorReasonNetworkError;
   } else {
     errorCode = kErrorReasonSignInFailed;
   }
@@ -34,7 +29,7 @@ static FlutterError *getFlutterError(NSError *error) {
                              details:error.localizedDescription];
 }
 
-@interface FLTGoogleSignInPlugin () <GIDSignInDelegate>
+@interface FLTGoogleSignInPlugin () <GIDSignInDelegate, GIDSignInUIDelegate>
 @end
 
 @implementation FLTGoogleSignInPlugin {
@@ -54,6 +49,7 @@ static FlutterError *getFlutterError(NSError *error) {
   self = [super init];
   if (self) {
     [GIDSignIn sharedInstance].delegate = self;
+    [GIDSignIn sharedInstance].uiDelegate = self;
 
     // On the iOS simulator, we get "Broken pipe" errors after sign-in for some
     // unknown reason. We can avoid crashing the app by ignoring them.
@@ -72,19 +68,19 @@ static FlutterError *getFlutterError(NSError *error) {
                                  message:@"Games sign in is not supported on iOS"
                                  details:nil]);
     } else {
-      NSString *path = [[NSBundle mainBundle] pathForResource:@"GoogleService-Info"
-                                                       ofType:@"plist"];
-      if (path) {
-        NSMutableDictionary *plist = [[NSMutableDictionary alloc] initWithContentsOfFile:path];
+        NSString *fileName = [[NSBundle mainBundle] infoDictionary][@"FIREBASE_PLIST_FILE_KEY"];
+        NSString *filePath = [[NSBundle mainBundle] pathForResource:fileName ofType:@"plist"];
+        
+      if (filePath) {
+        NSMutableDictionary *plist = [[NSMutableDictionary alloc] initWithContentsOfFile:filePath];
         [GIDSignIn sharedInstance].clientID = plist[kClientIdKey];
-        [GIDSignIn sharedInstance].serverClientID = plist[kServerClientIdKey];
         [GIDSignIn sharedInstance].scopes = call.arguments[@"scopes"];
         [GIDSignIn sharedInstance].hostedDomain = call.arguments[@"hostedDomain"];
         NSString *serverClientId = call.arguments[@"serverClientId"];
         if (![serverClientId isKindOfClass:[NSNull class]] && serverClientId != nil) {
             [GIDSignIn sharedInstance].serverClientID = serverClientId;
         }
-        
+
         result(nil);
       } else {
         result([FlutterError errorWithCode:@"missing-config"
@@ -94,13 +90,11 @@ static FlutterError *getFlutterError(NSError *error) {
     }
   } else if ([call.method isEqualToString:@"signInSilently"]) {
     if ([self setAccountRequest:result]) {
-      [[GIDSignIn sharedInstance] restorePreviousSignIn];
+      [[GIDSignIn sharedInstance] signInSilently];
     }
   } else if ([call.method isEqualToString:@"isSignedIn"]) {
-    result(@([[GIDSignIn sharedInstance] hasPreviousSignIn]));
+    result(@([[GIDSignIn sharedInstance] hasAuthInKeychain]));
   } else if ([call.method isEqualToString:@"signIn"]) {
-    [GIDSignIn sharedInstance].presentingViewController = [self topViewController];
-
     if ([self setAccountRequest:result]) {
       @try {
         [[GIDSignIn sharedInstance] signIn];
@@ -147,7 +141,10 @@ static FlutterError *getFlutterError(NSError *error) {
 
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary *)options {
   NSString *sourceApplication = options[UIApplicationOpenURLOptionsSourceApplicationKey];
-  return [[GIDSignIn sharedInstance] handleURL:url];
+  id annotation = options[UIApplicationOpenURLOptionsAnnotationKey];
+  return [[GIDSignIn sharedInstance] handleURL:url
+                             sourceApplication:sourceApplication
+                                    annotation:annotation];
 }
 
 #pragma mark - <GIDSignInUIDelegate> protocol
@@ -177,12 +174,17 @@ static FlutterError *getFlutterError(NSError *error) {
       // size
       photoUrl = [user.profile imageURLWithDimension:1337];
     }
+
+    NSString *serverAuthCode;
+    if (![user.serverAuthCode isKindOfClass:[NSNull class]] && user.serverAuthCode != nil) {
+        serverAuthCode = user.serverAuthCode;
+    }
     [self respondWithAccount:@{
       @"displayName" : user.profile.name ?: [NSNull null],
       @"email" : user.profile.email ?: [NSNull null],
       @"id" : user.userID ?: [NSNull null],
       @"photoUrl" : [photoUrl absoluteString] ?: [NSNull null],
-      @"serverAuthCode" : user.serverAuthCode ?: [NSNull null]
+      @"serverAuthCode" : serverAuthCode ?: [NSNull null],
     }
                        error:nil];
   }
@@ -202,36 +204,4 @@ static FlutterError *getFlutterError(NSError *error) {
   result(error != nil ? getFlutterError(error) : account);
 }
 
-- (UIViewController *)topViewController {
-  return [self topViewControllerFromViewController:[UIApplication sharedApplication]
-                                                       .keyWindow.rootViewController];
-}
-
-/**
- * This method recursively iterate through the view hierarchy
- * to return the top most view controller.
- *
- * It supports the following scenarios:
- *
- * - The view controller is presenting another view.
- * - The view controller is a UINavigationController.
- * - The view controller is a UITabBarController.
- *
- * @return The top most view controller.
- */
-- (UIViewController *)topViewControllerFromViewController:(UIViewController *)viewController {
-  if ([viewController isKindOfClass:[UINavigationController class]]) {
-    UINavigationController *navigationController = (UINavigationController *)viewController;
-    return [self
-        topViewControllerFromViewController:[navigationController.viewControllers lastObject]];
-  }
-  if ([viewController isKindOfClass:[UITabBarController class]]) {
-    UITabBarController *tabController = (UITabBarController *)viewController;
-    return [self topViewControllerFromViewController:tabController.selectedViewController];
-  }
-  if (viewController.presentedViewController) {
-    return [self topViewControllerFromViewController:viewController.presentedViewController];
-  }
-  return viewController;
-}
 @end
