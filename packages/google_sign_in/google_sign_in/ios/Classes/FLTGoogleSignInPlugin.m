@@ -34,7 +34,7 @@ static FlutterError *getFlutterError(NSError *error) {
                              details:error.localizedDescription];
 }
 
-@interface FLTGoogleSignInPlugin () <GIDSignInDelegate>
+@interface FLTGoogleSignInPlugin () <GIDSignInDelegate, GIDSignInUIDelegate>
 @end
 
 @implementation FLTGoogleSignInPlugin {
@@ -54,6 +54,7 @@ static FlutterError *getFlutterError(NSError *error) {
   self = [super init];
   if (self) {
     [GIDSignIn sharedInstance].delegate = self;
+    // [GIDSignIn sharedInstance].uiDelegate = self;
 
     // On the iOS simulator, we get "Broken pipe" errors after sign-in for some
     // unknown reason. We can avoid crashing the app by ignoring them.
@@ -77,9 +78,13 @@ static FlutterError *getFlutterError(NSError *error) {
       if (path) {
         NSMutableDictionary *plist = [[NSMutableDictionary alloc] initWithContentsOfFile:path];
         [GIDSignIn sharedInstance].clientID = plist[kClientIdKey];
-        [GIDSignIn sharedInstance].serverClientID = plist[kServerClientIdKey];
         [GIDSignIn sharedInstance].scopes = call.arguments[@"scopes"];
         [GIDSignIn sharedInstance].hostedDomain = call.arguments[@"hostedDomain"];
+        NSString *serverClientId = call.arguments[@"serverClientId"];
+        if (![serverClientId isKindOfClass:[NSNull class]] && serverClientId != nil) {
+            [GIDSignIn sharedInstance].serverClientID = serverClientId;
+        }
+
         result(nil);
       } else {
         result([FlutterError errorWithCode:@"missing-config"
@@ -89,10 +94,10 @@ static FlutterError *getFlutterError(NSError *error) {
     }
   } else if ([call.method isEqualToString:@"signInSilently"]) {
     if ([self setAccountRequest:result]) {
-      [[GIDSignIn sharedInstance] restorePreviousSignIn];
+      [[GIDSignIn sharedInstance] signInSilently];
     }
   } else if ([call.method isEqualToString:@"isSignedIn"]) {
-    result(@([[GIDSignIn sharedInstance] hasPreviousSignIn]));
+    result(@([[GIDSignIn sharedInstance] hasAuthInKeychain]));
   } else if ([call.method isEqualToString:@"signIn"]) {
     [GIDSignIn sharedInstance].presentingViewController = [self topViewController];
 
@@ -172,12 +177,17 @@ static FlutterError *getFlutterError(NSError *error) {
       // size
       photoUrl = [user.profile imageURLWithDimension:1337];
     }
+
+    NSString *serverAuthCode;
+    if (![user.serverAuthCode isKindOfClass:[NSNull class]] && user.serverAuthCode != nil) {
+        serverAuthCode = user.serverAuthCode;
+    }
     [self respondWithAccount:@{
       @"displayName" : user.profile.name ?: [NSNull null],
       @"email" : user.profile.email ?: [NSNull null],
       @"id" : user.userID ?: [NSNull null],
       @"photoUrl" : [photoUrl absoluteString] ?: [NSNull null],
-      @"serverAuthCode" : user.serverAuthCode ?: [NSNull null]
+      @"serverAuthCode" : serverAuthCode ?: [NSNull null]
     }
                        error:nil];
   }
