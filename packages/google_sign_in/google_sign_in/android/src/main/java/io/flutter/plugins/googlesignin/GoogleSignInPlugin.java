@@ -245,7 +245,6 @@ public class GoogleSignInPlugin implements MethodCallHandler {
           optionsBuilder.requestServerAuthCode(serverClientId);
         } else if (clientIdIdentifier != 0) {
           optionsBuilder.requestIdToken(registrar.context().getString(clientIdIdentifier));
-          optionsBuilder.requestServerAuthCode(registrar.context().getString(clientIdIdentifier));
         }
         for (String scope : requestedScopes) {
           optionsBuilder.requestScopes(new Scope(scope));
