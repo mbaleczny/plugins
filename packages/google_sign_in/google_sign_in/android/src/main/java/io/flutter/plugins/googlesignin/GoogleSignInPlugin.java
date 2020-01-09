@@ -66,7 +66,8 @@ public class GoogleSignInPlugin implements MethodCallHandler {
         String signInOption = call.argument("signInOption");
         List<String> requestedScopes = call.argument("scopes");
         String hostedDomain = call.argument("hostedDomain");
-        delegate.init(result, signInOption, requestedScopes, hostedDomain);
+        String serverClientId = call.argument("serverClientId");
+        delegate.init(result, signInOption, requestedScopes, hostedDomain, serverClientId);
         break;
 
       case METHOD_SIGN_IN_SILENTLY:
@@ -113,7 +114,8 @@ public class GoogleSignInPlugin implements MethodCallHandler {
   public interface IDelegate {
     /** Initializes this delegate so that it is ready to perform other operations. */
     public void init(
-        Result result, String signInOption, List<String> requestedScopes, String hostedDomain);
+        Result result, String signInOption, List<String> requestedScopes, 
+        String hostedDomain, String serverClientId);
 
     /**
      * Returns the account information for the user who is signed in to this app. If no user is
@@ -211,7 +213,8 @@ public class GoogleSignInPlugin implements MethodCallHandler {
      */
     @Override
     public void init(
-        Result result, String signInOption, List<String> requestedScopes, String hostedDomain) {
+        Result result, String signInOption, List<String> requestedScopes, 
+        String hostedDomain, String serverClientId) {
       try {
         GoogleSignInOptions.Builder optionsBuilder;
 
@@ -238,7 +241,9 @@ public class GoogleSignInPlugin implements MethodCallHandler {
                 .getResources()
                 .getIdentifier(
                     "default_web_client_id", "string", registrar.context().getPackageName());
-        if (clientIdIdentifier != 0) {
+        if (serverClientId != null) {
+          optionsBuilder.requestServerAuthCode(serverClientId);
+        } else if (clientIdIdentifier != 0) {
           optionsBuilder.requestIdToken(registrar.context().getString(clientIdIdentifier));
           optionsBuilder.requestServerAuthCode(registrar.context().getString(clientIdIdentifier));
         }
