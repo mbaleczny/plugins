@@ -78,11 +78,13 @@ abstract class GoogleSignInPlatform {
   ///
   /// See:
   /// https://developers.google.com/identity/sign-in/web/reference#gapiauth2initparams
-  Future<void> init(
-      {@required String hostedDomain,
-      List<String> scopes,
-      SignInOption signInOption,
-      String clientId}) async {
+  Future<void> init({
+    @required String hostedDomain,
+    List<String> scopes,
+    SignInOption signInOption,
+    String clientId,
+    String serverClientId,
+  }) async {
     throw UnimplementedError('init() has not been implemented.');
   }
 

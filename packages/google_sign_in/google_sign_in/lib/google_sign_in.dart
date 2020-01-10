@@ -27,6 +27,9 @@ class GoogleSignInAuthentication {
   /// The OAuth2 access token to access Google services.
   String get accessToken => _data.accessToken;
 
+  /// The OAuth2 server code to access Google ???
+  String get serverAuthCode => _data.serverAuthCode;
+
   @override
   String toString() => 'GoogleSignInAuthentication:$_data';
 }
@@ -41,7 +44,8 @@ class GoogleSignInAccount implements GoogleIdentity {
         email = data.email,
         id = data.id,
         photoUrl = data.photoUrl,
-        _idToken = data.idToken {
+        _idToken = data.idToken, 
+        _serverAuthCode = data.serverAuthCode {
     assert(id != null);
   }
 
@@ -66,6 +70,7 @@ class GoogleSignInAccount implements GoogleIdentity {
   final String photoUrl;
 
   final String _idToken;
+  final String _serverAuthCode;
   final GoogleSignIn _googleSignIn;
 
   /// Retrieve [GoogleSignInAuthentication] for this account.
@@ -94,6 +99,11 @@ class GoogleSignInAccount implements GoogleIdentity {
     if (response.idToken == null) {
       response.idToken = _idToken;
     }
+
+    if (response.serverAuthCode == null) {
+      response.serverAuthCode = _serverAuthCode;
+    }
+
     return GoogleSignInAuthentication._(response);
   }
 
@@ -127,7 +137,8 @@ class GoogleSignInAccount implements GoogleIdentity {
         email == otherAccount.email &&
         id == otherAccount.id &&
         photoUrl == otherAccount.photoUrl &&
-        _idToken == otherAccount._idToken;
+        _idToken == otherAccount._idToken &&
+        _serverAuthCode == otherAccount._serverAuthCode;
   }
 
   @override
@@ -166,6 +177,7 @@ class GoogleSignIn {
     this.scopes = const <String>[],
     this.hostedDomain,
     this.clientId,
+    this.serverClientId,
   });
 
   /// Factory for creating default sign in user experience.
@@ -214,6 +226,9 @@ class GoogleSignIn {
   /// Client ID being used to connect to google sign-in. Only supported on web.
   final String clientId;
 
+  /// Server client ID
+  final String serverClientId;
+
   StreamController<GoogleSignInAccount> _currentUserController =
       StreamController<GoogleSignInAccount>.broadcast();
 
@@ -248,6 +263,7 @@ class GoogleSignIn {
       scopes: scopes,
       hostedDomain: hostedDomain,
       clientId: clientId,
+      serverClientId: serverClientId,
     )..catchError((dynamic _) {
         // Invalidate initialization if it errors out.
         _initialization = null;

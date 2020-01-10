@@ -20,15 +20,18 @@ class MethodChannelGoogleSignIn extends GoogleSignInPlatform {
       const MethodChannel('plugins.flutter.io/google_sign_in');
 
   @override
-  Future<void> init(
-      {@required String hostedDomain,
-      List<String> scopes = const <String>[],
-      SignInOption signInOption = SignInOption.standard,
-      String clientId}) {
+  Future<void> init({
+    @required String hostedDomain,
+    List<String> scopes = const <String>[],
+    SignInOption signInOption = SignInOption.standard,
+    String clientId,
+    String serverClientId,
+  }) {
     return channel.invokeMethod<void>('init', <String, dynamic>{
       'signInOption': signInOption.toString(),
       'scopes': scopes,
       'hostedDomain': hostedDomain,
+      'serverClientId': serverClientId,
     });
   }
 
