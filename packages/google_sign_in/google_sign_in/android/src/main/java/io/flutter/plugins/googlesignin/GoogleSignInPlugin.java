@@ -241,10 +241,10 @@ public class GoogleSignInPlugin implements MethodCallHandler {
                 .getResources()
                 .getIdentifier(
                     "default_web_client_id", "string", registrar.context().getPackageName());
-        if (clientIdIdentifier != 0) {
-          optionsBuilder.requestIdToken(registrar.context().getString(clientIdIdentifier));
-        } else if (serverClientId != null || !serverClientId.isEmpty()) {
+        if (serverClientId != null || !serverClientId.isEmpty()) {
           optionsBuilder.requestServerAuthCode(serverClientId);
+        } else if (clientIdIdentifier != 0) {
+          optionsBuilder.requestIdToken(registrar.context().getString(clientIdIdentifier));
         }
         for (String scope : requestedScopes) {
           optionsBuilder.requestScopes(new Scope(scope));
@@ -267,6 +267,8 @@ public class GoogleSignInPlugin implements MethodCallHandler {
      */
     @Override
     public void signInSilently(Result result) {
+      System.out.println("signInSilently");
+      System.out.println(result.toString());
       checkAndSetPendingOperation(METHOD_SIGN_IN_SILENTLY, result);
       Task<GoogleSignInAccount> task = signInClient.silentSignIn();
       if (task.isSuccessful()) {
